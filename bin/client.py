@@ -4,7 +4,7 @@ import threading
 import logging
 
 SERVER_IP = "127.0.0.1"
-SERVER_PORT = "8765"
+SERVER_PORT = 8765
 
 
 def receive_msg(client_socket):
@@ -38,6 +38,7 @@ def receive_msg(client_socket):
 def close_client(client_socket):
     client_socket.close()
     return
+
 
 def main():
     try:
