@@ -26,7 +26,12 @@ nicknames = []
 def handle_client(client_socket, client_address, server_socket):
     while True:
         try:
-            data = client_socket.recv(1024).decode('utf-8')
+            try:
+                data = client_socket.recv(1024).decode('utf-8').strip()
+            except ConnectionResetError:
+                logging.error("Connection forcibly closed by the remote host.")
+                client_socket.close()
+
             if not data:
                 logging.info(f"Connection closed by {client_address}")
                 break
@@ -105,12 +110,38 @@ def get_chats():
 
 
 def authenticate_client(client_socket):
-    client_socket.send("Give your key to access the chat.".encode('utf-8'))
-    client_socket.send("Key: ".encode('utf-8'))
-    data = client_socket.recv(1024).decode('utf-8').strip()
+    client_socket.send("Give your key to access the chat.\n".encode('utf-8'))
+    client_socket.send("Key:".encode('utf-8'))
+    try:
+        data = client_socket.recv(1024).decode('utf-8').strip()
+        print(data)
+    except ConnectionResetError:
+        logging.error("Connection forcibly closed by the remote host.")
+        client_socket.close()
+        return False
+    
+    if data.split()[1].lower() == "admin":
+        client_socket.send("Give your admin key to access the chat.".encode('utf-8'))
+        client_socket.send("Key:".encode('utf-8'))
+        try:
+            data = client_socket.recv(1024).decode('utf-8').strip()
+        except ConnectionResetError:
+            logging.error("Connection forcibly closed by the remote host.")
+            client_socket.close()
+            return False
+        
+        if data.split()[1] == config.get('Server', 'AdminKey'):
+            logging.info(f"Admin access granted to {client_socket.getpeername()}")
+            client_socket.send("Admin access granted.".encode('utf-8'))
+            return True
+        else:
+            logging.info(f"Admin access denied to {client_socket.getpeername()}")
+            client_socket.send("Admin access denied.".encode('utf-8'))
+            return False
+
     keys = get_keys()
     for key, username in keys:
-        if data == key.strip():
+        if data.split()[1] == key.strip():
             logging.info(f"Access granted to {client_socket.getpeername()}")
             client_socket.send("Access granted.".encode('utf-8'))
             broadcast_message(f"Welcome back {username}".encode('utf-8'), client_socket)
@@ -122,7 +153,7 @@ def authenticate_client(client_socket):
     return False
 
 
-def main():
+def chat_room():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind((SERVER_IP, SERVER_PORT))
     server_socket.listen()
@@ -140,6 +171,9 @@ def main():
             client_thread.start()
         else:
             client_socket.close()
+
+def main():
+    chat_room()
 
 
 if __name__ == "__main__":
