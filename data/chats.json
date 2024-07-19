@@ -1,0 +1,7 @@
+[
+    {
+        "id" : 1,
+        "chat_name" : "Chat 1",
+        "users" : ["Pippo"]
+    }
+]
