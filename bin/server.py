@@ -21,6 +21,7 @@ CHATS_FILE = config.get('Paths', 'ChatsFile', fallback='../data/chats.json')
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 client_connections = []
+nicknames = []
 
 def handle_client(client_socket, client_address, server_socket):
     while True:
@@ -30,27 +31,35 @@ def handle_client(client_socket, client_address, server_socket):
                 logging.info(f"Connection closed by {client_address}")
                 break
 
-            logging.info(f"Da {client_address}: {data}")
+            logging.info(f"From {client_address}: {data}")
             log_chat(client_address, data)
             
             if data.lower() == "close":
                 stop_server(server_socket, client_connections)
-                break
+                return
+
             broadcast_message(data, client_socket)
 
-        except Exception as e:
+        except OSError as e:
             logging.error(f"Error handling client {client_address}: {e}")
-        
-        finally:
             client_connections.remove(client_socket)
             client_socket.close()
+            
+        except Exception as e:
+            index = client_connections.index(client_socket)
+            client_connections.pop(index)
+            client_socket.close()
+            nickname = nicknames[index]
+            broadcast_message(f"{nickname} left the chat.", client_socket)
+            nicknames.remove(nickname)
+            break
 
 
 def broadcast_message(message, sender_socket):
     for connection in client_connections:
         if connection != sender_socket:
             try:
-                connection.sendall(message.encode('utf-8'))
+                connection.send(message.encode('utf-8'))
             except Exception as e:
                 logging.error(f"Error broadcasting message: {e}")
 
@@ -97,13 +106,16 @@ def get_chats():
 
 def authenticate_client(client_socket):
     client_socket.send("Give your key to access the chat.".encode('utf-8'))
+    client_socket.send("Key: ".encode('utf-8'))
     data = client_socket.recv(1024).decode('utf-8').strip()
     keys = get_keys()
     for key, username in keys:
         if data == key.strip():
             logging.info(f"Access granted to {client_socket.getpeername()}")
             client_socket.send("Access granted.".encode('utf-8'))
-            client_socket.send(f"Welcome back {username}".encode('utf-8'))
+            broadcast_message(f"Welcome back {username}".encode('utf-8'), client_socket)
+            client_socket.send("You are now connected.".encode('utf-8'))
+            nicknames.append(username)
             return True
     logging.info(f"Access denied to {client_socket.getpeername()}")
     client_socket.send("Access denied.".encode('utf-8'))
@@ -113,9 +125,8 @@ def authenticate_client(client_socket):
 def main():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind((SERVER_IP, SERVER_PORT))
-    server_socket.listen(10)
+    server_socket.listen()
     print(f"Server listening on: {SERVER_IP}:{SERVER_PORT}...")
-
 
     signal.signal(signal.SIGINT, lambda sig, frame: stop_server(server_socket))
 
