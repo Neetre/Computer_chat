@@ -27,7 +27,7 @@ def handle_client(client_socket, client_address, server_socket):
     while True:
         try:
             try:
-                data = client_socket.recv(1024).decode('utf-8').strip()
+                msg = data = client_socket.recv(1024).decode('utf-8').strip()
             except ConnectionResetError:
                 logging.error("Connection forcibly closed by the remote host.")
                 client_socket.close()
@@ -42,8 +42,25 @@ def handle_client(client_socket, client_address, server_socket):
             if data.lower() == "close":
                 stop_server(server_socket, client_connections)
                 return
-
-            broadcast_message(data, client_socket)
+            
+            if msg.startswith("KICK"):
+                if nicknames[client_connections.index(client_socket)] == "admin":
+                    name_to_kick = msg[5:]
+                    kick_user(name_to_kick)
+                    print(f"{name_to_kick} was kicked!")
+                else:
+                    client_socket.send("Command was refused!".encode("utf-8"))
+            elif msg.startswith("BAN"):
+                if nicknames[client_connections.index(client_socket)] == "admin":
+                    name_to_ban = msg[4:]
+                    kick_user(name_to_ban)
+                    with open("../data/bans.txt", "a") as file:
+                        file.write(f"{name_to_ban}\n")
+                    print(f"{name_to_ban} was banned!")
+                else:
+                    client_socket.send("Command was refused!".encode("utf-8"))
+            else:
+                broadcast_message(data, client_socket)
 
         except OSError as e:
             logging.error(f"Error handling client {client_address}: {e}")
@@ -51,13 +68,25 @@ def handle_client(client_socket, client_address, server_socket):
             client_socket.close()
             
         except Exception as e:
-            index = client_connections.index(client_socket)
-            client_connections.pop(index)
-            client_socket.close()
-            nickname = nicknames[index]
-            broadcast_message(f"{nickname} left the chat.", client_socket)
-            nicknames.remove(nickname)
-            break
+            if client_socket in client_connections:
+                index = client_connections.index(client_socket)
+                client_connections.pop(index)
+                client_socket.close()
+                nickname = nicknames[index]
+                broadcast_message(f"{nickname} left the chat.", client_socket)
+                nicknames.remove(nickname)
+                break
+
+
+def kick_user(name):
+    if name in nicknames:
+        name_index = nicknames.index(name)
+        client_to_kick = client_connections[name_index]
+        client_connections.remove(client_to_kick)
+        client_to_kick.send("You were kicked by an admin!".encode("utf-8"))
+        client_to_kick.close()
+        nicknames.remove(name)
+        broadcast_message(f"{name} was kicked by an admin!!".encode("utf-8"))
 
 
 def broadcast_message(message, sender_socket):
@@ -109,7 +138,7 @@ def get_chats():
         return {}
 
 
-def authenticate_client(client_socket):
+def authenticate_client(client_socket, nickname):
     client_socket.send("Give your key to access the chat.\n".encode('utf-8'))
     client_socket.send("Key:".encode('utf-8'))
     try:
@@ -138,6 +167,13 @@ def authenticate_client(client_socket):
             logging.info(f"Admin access denied to {client_socket.getpeername()}")
             client_socket.send("Admin access denied.".encode('utf-8'))
             return False
+        
+    with open("../data/bans.txt", "r") as file:
+        bans = file.readlines()
+        
+    if nickname+"\n" in bans:
+        client_socket.send("BAN".encode('utf-8'))
+        return False
 
     keys = get_keys()
     for key, username in keys:
@@ -164,8 +200,11 @@ def chat_room():
     while True:
         client_socket, client_address = server_socket.accept()
         logging.info(f"Connection accepted from {client_address}")
+        client_socket.send("NICK".encode('utf-8'))
+        nickname = client_socket.recv(1024).decode('utf-8')
+        nicknames.append(nickname)
         
-        if authenticate_client(client_socket):
+        if authenticate_client(client_socket, nickname):
             client_connections.append(client_socket)
             client_thread = threading.Thread(target=handle_client, args=(client_socket, client_address, server_socket))
             client_thread.start()

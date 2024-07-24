@@ -25,6 +25,11 @@ def receive_msg(client_socket):
             elif message == "":
                 logging.info("Connection closed by the server...")
                 close_client(client_socket)
+            
+            elif message == "BAN":
+                print("Connection refused because BANNED!")
+                close_client(client_socket)
+                break
     
             else:
                 print(message)
@@ -59,7 +64,16 @@ def write_msg(client_socket, nickname):
             if message.endswith(": exit") or message.endswith(": close"):
                 close_client(client_socket)
                 break
-            client_socket.send(message.encode('utf-8'))
+            if message[len(nickname)+2:].startswith("/"):
+                if nickname == 'admin':
+                    if message[len(nickname)+2:].startswith("/kick"):
+                        client_socket.send(f"KICK {message[len(nickname)+2+6:]}".encode("utf-8"))
+                    elif message[len(nickname)+2:].startswith('/ban'):
+                        client_socket.send(f"BAN {message[len(nickname)+2+5:]}".encode("utf-8"))
+                else:
+                    print("Commands can only be executed by the admin!!")
+            else:
+                client_socket.send(message.encode('utf-8'))
         except Exception as e:
             print(f"An error occurred while sending the message: {e}")
             close_client(client_socket)
