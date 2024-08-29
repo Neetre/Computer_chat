@@ -37,6 +37,10 @@ To run the client, you need to run the following command:
 python client.py
 ```
 
+Here is an example of the chat between the server and the client:
+![server_client](./data/readme/test_chat.png)
+On the left side is the server, and on the right side there are two clients. The server receives messages from the client and sends them to the other client.
+
 ### Note:
 
 **you need to change the IP address in the client.py file to the IP address of the computer running the server, if the server is running on the same computer, you can use the localhost IP address (127.0.0.1)**
