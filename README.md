@@ -8,6 +8,8 @@ The program is designed to run on two different computers connected to the same 
 
 ### Note: This program is for educational purposes only and should not be used for any malicious purposes.
 
+There are some minor bugs in the program that need to be fixed, and the program is not secure, so it should not be used for any sensitive information.
+
 ## Requirements
 
 python >= 3.9
